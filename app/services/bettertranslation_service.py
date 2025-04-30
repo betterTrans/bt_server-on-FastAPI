@@ -1,7 +1,101 @@
 import json, re
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.vectorstores import FAISS
+from langchain_core.example_selectors.semantic_similarity import SemanticSimilarityExampleSelector as Selector
 from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts.few_shot import FewShotPromptTemplate
 from langchain_groq import ChatGroq
+from langchain_core.output_parsers import StrOutputParser
 
+# 取得【更好的翻譯】
+def get_bettertranslation(instruction: str, input: str) -> str:
+    try:
+        # 設定內嵌模型
+        embeddings = OpenAIEmbeddings( # 參考：https://platform.openai.com/docs/guides/embeddings/embedding-models
+            #model="text-embedding-ada-002" # （預設模型）每 $1 可處理 12,500 頁（處理 IIO 54 秒，41MB），MTEB 分數 61.0%
+            #model="text-embedding-3-small" # 每 $1 可處理 62,500 頁（處理 IIO 52 秒，41MB），MTEB 分數 62.3%
+            model="text-embedding-3-large" # 每 $1 可處理 9,615 頁（處理 IIO 84 秒，82MB），MTEB 分數 64.6%
+        )
+
+        # 載入 vectorstore
+        vectorStore = FAISS.load_local(
+            f'{embeddings.model}-20240530.vectorstore.pkl',
+            embeddings,
+            allow_dangerous_deserialization=True)
+
+        # 載入樣本選擇器
+        example_selector = Selector(
+            vectorstore=vectorStore, # 每筆資料都有 'instruction', 'input', 'output' 三個欄位
+            k=10,
+            input_keys=['instruction', 'input'], # 選擇資料時，會用 'instruction', 'input' 這兩個欄位來進行檢索
+        )
+
+        # 建立 Example Template
+        example_prompt = PromptTemplate(
+            template="""英文原文: {instruction}
+機器翻譯: {input}
+更好的譯文: {output}""",
+            input_variables=["instruction", "input", "output"],
+        )
+
+        # 建立 Few-Shot Template
+        prompt = FewShotPromptTemplate(
+            prefix="""根據以下的翻譯規則，把「英文原文」相應的「機器翻譯」，修改成「更好的譯文」：
+
+翻譯規則：
+1. 翻譯時，要把英文原文中每個 word 的意思表達出來，不要省略，也不要漏譯。
+2. 如果是英文原文中沒出現的 word，不要在翻譯時增添額外的語詞，也不要隨意衍生出額外的譯文。
+3. 翻譯成中文時，請盡量使用台灣會使用的詞彙。
+
+<< 回應格式 >>
+```json
+{{
+    "英文原文": string \ 所提供的英文原文
+    "機器翻譯": string \ 所提供的機器翻譯
+    "更好的譯文": string \ 根據參考範例，對機器翻譯進行修改後的譯文
+}}
+```
+
+以下是一些範例，請參考這些範例，輸出更好的譯文：""",
+            example_selector=example_selector, # 用 'instruction', 'input' 這兩個欄位來檢索範本資料
+            example_prompt=example_prompt, # 根據檢索出來的範本資料來建立範本 prompt，其中包含有 'instruction', 'input', 'output' 這三個欄位的資訊
+            suffix="""
+
+下面就是本次所要翻譯的英文原文，請修改相應的機器翻譯，輸出更好的譯文。
+
+英文原文: {instruction}
+機器翻譯: {input}
+更好的譯文:
+
+<< OUTPUT (must include ```json at the start of the response) >>
+<< OUTPUT (must end with ```) >>""",
+            input_variables=["instruction", "input"],
+        )
+
+        # 定義大語言模型
+        llm = ChatGroq(model="Llama3-70b-8192", temperature=0.7)
+
+        # 定義輸出解析器
+        output_parser = StrOutputParser()
+
+        # 定義 Chain
+        chain = prompt | llm | output_parser
+
+        r = chain.invoke({"instruction": instruction, "input": input})
+    except Exception as e:
+        print(e)
+        r = {}
+
+    try:
+        json_str = get_json_str(r)
+        better_translation = json.loads(json_str).get("更好的譯文", "回應裡找不到更好的譯文")
+    except:
+        print(json_str, flush=True)
+        better_translation = "回應的結果在進行 JSON 轉換時出錯了！！"
+
+    return better_translation
+
+# 把標籤插入譯文
 def insert_tag_into_translation(instruction: str, input: str) -> str:
     prompt_template="""你是一位精通 en 和 zh_tw 這兩種語言的專家。你很瞭解中英文的對應關係。
 接下來你會看到一段英文，以及相應的中文翻譯。

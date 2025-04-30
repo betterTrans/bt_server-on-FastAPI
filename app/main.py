@@ -1,5 +1,8 @@
 from fastapi import FastAPI
-from app.api.v1 import router as v1_router
+from app.api.v1 import router as api_v1_router
+from dotenv import load_dotenv
+
+load_dotenv() # 從 .env 載入環境變數
 
 app = FastAPI()
 
@@ -7,7 +10,5 @@ app = FastAPI()
 def root():
     return {"message": "Hello World"}
 
-# 把 v1 版的 API router 掛進來
-# app.include_router(example_router, prefix="/api/v1", tags=["Example"])
-# 自動把所有的 v1 版 API router 掛進來
-app.include_router(v1_router, prefix="/api/v1")
+# 把 v1 版的所有 API router 自動掛進來
+app.include_router(api_v1_router, prefix="/api")

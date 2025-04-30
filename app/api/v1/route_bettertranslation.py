@@ -1,8 +1,17 @@
 from fastapi import APIRouter
-from app.schemas.bettertranslation_schema import BetterTranslationRequest, TranslationWithTagResponse
-from app.services.bettertranslation_service import insert_tag_into_translation
+from app.schemas.bettertranslation_schema import BetterTranslationRequest, BetterTranslationResponse, TranslationWithTagResponse
+from app.services.bettertranslation_service import get_bettertranslation, insert_tag_into_translation
 
 router = APIRouter()
+
+@router.post("/getbettertranslation", response_model=BetterTranslationResponse)
+async def get_better_translation(data: BetterTranslationRequest):
+    output = get_bettertranslation(data.instruction, data.input)
+    return {
+        "英文原文": data.instruction,
+        "機器翻譯": data.input,
+        "更好的譯文": output
+    }
 
 @router.post("/inserttagintotranslation", response_model=TranslationWithTagResponse)
 async def inserttagintotranslation(data: BetterTranslationRequest):
