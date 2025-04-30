@@ -15,4 +15,4 @@ class BetterTranslationResponse(BaseModel):
 class TranslationWithTagResponse(BaseModel):
     帶有標籤的英文原文: str
     沒有標籤的中文譯文: str
-    帶有標籤的中文譯文: str
+    輸出的中文: str

@@ -19,5 +19,5 @@ async def inserttagintotranslation(data: BetterTranslationRequest):
     return {
         "帶有標籤的英文原文": data.instruction,
         "沒有標籤的中文譯文": data.input,
-        "帶有標籤的中文譯文": output
+        "輸出的中文": output
     }
