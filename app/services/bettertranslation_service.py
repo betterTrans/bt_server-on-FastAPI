@@ -83,20 +83,21 @@ def get_bettertranslation(instruction: str, input: str) -> str:
 
         r = chain.invoke({"instruction": instruction, "input": input})
     except Exception as e:
-        print(e)
+        print(e, flush=True)
         r = {}
 
     try:
         json_str = get_json_str(r)
         better_translation = json.loads(json_str).get("更好的譯文", "回應裡找不到更好的譯文")
-    except:
+    except Exception as e:
+        print(e, flush=True)
         print(json_str, flush=True)
         better_translation = "回應的結果在進行 JSON 轉換時出錯了！！"
 
     return better_translation
 
 # 把標籤插入譯文
-def insert_tag_into_translation(instruction: str, input: str) -> str:
+def insert_tagintotranslation(instruction: str, input: str) -> str:
     prompt_template="""你是一位精通 en 和 zh_tw 這兩種語言的專家。你很瞭解中英文的對應關係。
 接下來你會看到一段英文，以及相應的中文翻譯。
 在英文的文字裡，會看到一些數字標籤，把某些英文片段包了起來。
@@ -151,8 +152,13 @@ Return a markdown code snippet with a JSON object formatted to look like:
     llm = ChatGroq(model="Llama3-70b-8192", temperature=0.7)
     chain = prompt | llm
     r = chain.invoke({'instruction': instruction, 'input': input})
-    json_str = get_json_str(r)
-    taged_translation = json.loads(json_str).get("輸出的中文", "回應裡找不到輸出的中文")
+    try:
+        json_str = get_json_str(r)
+        taged_translation = json.loads(json_str).get("輸出的中文", "回應裡找不到輸出的中文")
+    except Exception as e:
+        print(e, flush=True)
+        print(json_str, flush=True)
+        taged_translation = "回應的結果在進行 JSON 轉換時出錯了！！"
 
     return taged_translation
 
@@ -172,7 +178,21 @@ def get_json_str(response):
     # 移除掉 json 字串前後多餘的文字，得出 json 字串
     try:
         json_str = re.search(r'```\s*(?:(?:json)?)\n({[^`]+})\n```', response_str)[1].strip()
-    except:
-        print(f"JSON 解析出錯了！回應內容為：{response}")
+    except Exception as e:
+        print(e, flush=True)
+        print(f"JSON 解析出錯了！回應內容為：{response}", flush=True)
         json_str = json.dumps(response)
-    return json_str
+    return escape_invalid_backslashes(json_str)
+
+# 公用函式：將不合法的反斜線序列轉換為合法的反斜線序列
+def escape_invalid_backslashes(s):
+    # 保留這些合法 escape
+    valid_escapes = ['\\"', '\\\\', '\\/', '\\b', '\\f', '\\n', '\\r', '\\t']
+    # 替換不在合法 escape 列表中的反斜線序列
+    def replacer(match):
+        seq = match.group(0)
+        if seq in valid_escapes:
+            return seq  # 合法的就保留
+        return '\\\\' + seq[1]  # 非法的加一個斜線變合法
+
+    return re.sub(r'\\.', replacer, s)
