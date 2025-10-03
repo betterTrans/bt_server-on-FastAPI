@@ -73,7 +73,7 @@ def get_bettertranslation(instruction: str, input: str) -> str:
         )
 
         # 定義大語言模型
-        llm = ChatGroq(model="Llama3-70b-8192", temperature=0.7)
+        llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0.7) # 參考 https://console.groq.com/docs/models
 
         # 定義輸出解析器
         output_parser = StrOutputParser()
@@ -149,7 +149,7 @@ Return a markdown code snippet with a JSON object formatted to look like:
         template=prompt_template,
         input_variables=["instruction", "input"],
     )
-    llm = ChatGroq(model="Llama3-70b-8192", temperature=0.7)
+    llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0.7) # 參考 https://console.groq.com/docs/models
     chain = prompt | llm
     r = chain.invoke({'instruction': instruction, 'input': input})
     try:
